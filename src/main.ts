@@ -360,7 +360,6 @@ function applyTextInput(rawText: string): void {
     }
   }
 
-  engine.clearLyricTimeline();
   engine.setText(rawText.replace(/\r?\n/g, '/'));
 }
 
