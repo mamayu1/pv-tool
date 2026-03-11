@@ -87,8 +87,8 @@ export const ja: Record<LocaleKey, string> = {
   'no_file': '未選択',
 
   // Sharecode & template management
-  'export_code': '設定コード出力',
-  'import_code': '設定コード入力',
+  'export_code': 'シェアコード出力',
+  'import_code': 'シェアコード入力',
   'import_btn': '読込',
   'code_copied': 'コピー済',
   'code_invalid': 'コード無効',
@@ -101,7 +101,7 @@ export const ja: Record<LocaleKey, string> = {
   'share_code': 'シェアコード Share Code',
   'copy': 'コピー',
   'paste_code': 'シェアコードを貼り付け...',
-  'import_share': 'シェアコード読込',
+
 
   // Effect categories
   'ecat_背景': '背景',

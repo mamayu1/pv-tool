@@ -462,7 +462,7 @@ tplExportBtn.addEventListener('click', async () => {
 tplImportBtn.addEventListener('click', () => {
   shareCodeMode = 'import';
   shareCodeLabel.classList.remove('label-error');
-  shareCodeLabel.textContent = t('import_share');
+  shareCodeLabel.textContent = t('import_code');
   shareCodeText.value = '';
   shareCodeText.readOnly = false;
   shareCodeOk.textContent = t('import_btn');

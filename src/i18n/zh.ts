@@ -85,11 +85,11 @@ export const zh = {
   'no_file': '未选择文件',
 
   // Sharecode & template management
-  'export_code': '导出配置码',
-  'import_code': '导入配置码',
+  'export_code': '导出分享码',
+  'import_code': '导入分享码',
   'import_btn': '导入',
   'code_copied': '已复制',
-  'code_invalid': '配置码无效',
+  'code_invalid': '分享码无效',
   'save_tpl': '保存',
   'delete_tpl': '删除',
   'confirm': '确认',
@@ -99,7 +99,7 @@ export const zh = {
   'share_code': '分享码 Share Code',
   'copy': '复制',
   'paste_code': '粘贴分享码...',
-  'import_share': '导入分享码',
+
 
   // Effect categories (used in custom panel)
   'ecat_背景': '背景',
