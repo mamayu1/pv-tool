@@ -86,6 +86,7 @@ export const ja: Record<LocaleKey, string> = {
   'tpl_girlyClouds': 'ピンククラウド',
   'tpl_sweetPink': 'グリッドスカラップ',
   'tpl_flyMeToTheMoon': 'Fly Me to the Moon',
+  'tpl_kawaiPixel': 'Kawaiiピクセル',
 
   // File picker
   'choose_file': 'ファイル選択',
@@ -119,6 +120,7 @@ export const ja: Record<LocaleKey, string> = {
   'ecat_数字废墟': 'デジタルグランジ',
   'ecat_特殊形状': '特殊シェイプ',
   'ecat_云朵条纹': 'クラウド＆ストライプ',
+  'ecat_Kawaii像素': 'Kawaiiピクセル',
 
   // Effect labels
   'fx_textureBackground': 'テクスチャ背景 Texture BG',
@@ -190,4 +192,8 @@ export const ja: Record<LocaleKey, string> = {
   'fx_pinkGrid': 'ピンクグリッド PinkGrid',
   'fx_scalloppedBorder': 'スカラップボーダー Scallop',
   'fx_pulsingCircle': 'パルスサークル Pulse',
+  'fx_pixelWindow': 'ピクセルウィンドウ PixelWin',
+  'fx_desktopIcon': 'デスクトップアイコン Icon',
+  'fx_pixelBackground': 'ピクセル背景 PixelBG',
+  'fx_pixelTypewriter': 'ピクセルタイプライター PixelType',
 };
