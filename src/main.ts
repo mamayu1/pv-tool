@@ -1034,70 +1034,65 @@ if (new URLSearchParams(window.location.search).get('obs') === '1') {
   const OFFSET_MS = parseInt(new URLSearchParams(window.location.search).get('offset') ?? '200');
 
   // ── Now Playing WebSocket 歌词同步 ──
-const NP_BASE = 'http://localhost:9863';
-const OFFSET_MS = parseInt(new URLSearchParams(window.location.search).get('offset') ?? '200');
+  let lrcLines: { ms: number; text: string }[] = [];
+  let lastLine = '';
+  let ws: WebSocket | null = null;
 
-let lrcLines: { ms: number; text: string }[] = [];
-let lastLine = '';
-let ws: WebSocket | null = null;
-
-function parseLRC(str: string) {
-  const re = /\[(\d{2}):(\d{2})[.:](\d{2,3})\](.+)/g;
-  const lines: { ms: number; text: string }[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(str)) !== null) {
-    const ms = (parseInt(m[1]) * 60 + parseInt(m[2])) * 1000
-             + parseInt(m[3].padEnd(3, '0'));
-    const text = m[4].trim();
-    if (text) lines.push({ ms, text });
+  function parseLRC(str: string) {
+    const re = /\[(\d{2}):(\d{2})[.:](\d{2,3})\](.+)/g;
+    const lines: { ms: number; text: string }[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(str)) !== null) {
+      const ms = (parseInt(m[1]) * 60 + parseInt(m[2])) * 1000
+               + parseInt(m[3].padEnd(3, '0'));
+      const text = m[4].trim();
+      if (text) lines.push({ ms, text });
+    }
+    return lines.sort((a, b) => a.ms - b.ms);
   }
-  return lines.sort((a, b) => a.ms - b.ms);
-}
 
-function getLineAt(posMs: number): string {
-  let result = '';
-  for (const { ms, text } of lrcLines) {
-    if (posMs >= ms) result = text;
-    else break;
+  function getLineAt(posMs: number): string {
+    let result = '';
+    for (const { ms, text } of lrcLines) {
+      if (posMs >= ms) result = text;
+      else break;
+    }
+    return result;
   }
-  return result;
+
+  function injectLyric(text: string) {
+    if (!text || text === lastLine) return;
+    lastLine = text;
+    engine.setTextLive(text + '/' + text);
+  }
+
+  function connectWS() {
+    ws = new WebSocket('ws://localhost:9863/api/ws/lyric');
+
+    ws.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d.lrc) {
+          lrcLines = parseLRC(d.lrc);
+          lastLine = '';
+          console.log('[obs-lyric] 歌词更新:', lrcLines.length, '行');
+        }
+        if (d.progress !== undefined) {
+          injectLyric(getLineAt(d.progress + OFFSET_MS));
+        }
+      } catch (_) {}
+    };
+
+    ws.onclose = () => {
+      setTimeout(connectWS, 2000);
+    };
+
+    ws.onerror = () => {
+      ws?.close();
+    };
+  }
+
+  connectWS();
+  console.log('[obs-lyric] OBS 透明模式启动');
 }
-
-function injectLyric(text: string) {
-  if (!text || text === lastLine) return;
-  lastLine = text;
-  engine.setTextLive(text + '/' + text);
-}
-
-function connectWS() {
-  ws = new WebSocket('ws://localhost:9863/api/ws/lyric');
-
-  ws.onmessage = (e) => {
-    try {
-      const d = JSON.parse(e.data);
-      // 切歌时重新解析lrc
-      if (d.lrc) {
-        lrcLines = parseLRC(d.lrc);
-        lastLine = '';
-        console.log('[obs-lyric] 歌词更新:', lrcLines.length, '行');
-      }
-      // 实时进度
-      if (d.progress !== undefined) {
-        injectLyric(getLineAt(d.progress + OFFSET_MS));
-      }
-    } catch (_) {}
-  };
-
-  ws.onclose = () => {
-    // 断线自动重连
-    setTimeout(connectWS, 2000);
-  };
-
-  ws.onerror = () => {
-    ws?.close();
-  };
-}
-
-connectWS();
-console.log('[obs-lyric] OBS 透明模式启动');
-}
+  
