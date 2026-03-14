@@ -276,8 +276,26 @@ const container = document.getElementById('pv-container')!;
 
 engine.init(container).then(() => {
   engine.setText('深夜東京/の6畳半夢/を見てた/灯りの灯らない蛍光灯/明日には消えてる電脳城/に/開幕戦/打ち上げて/いなくなんないよね/ここには誰もいない/ここには誰もいないから');
-  engine.loadTemplate(templates[0]);
-  templateSelect.value = '0';
+
+  // OBS 透明模式
+  if (new URLSearchParams(window.location.search).get('obs') === '1') {
+    engine.alphaMode = true;
+    document.body.style.background = 'transparent';
+    document.documentElement.style.background = 'transparent';
+  }
+
+  // URL参数指定模板 (?t=0 or ?t=custom)
+  const tParam = new URLSearchParams(window.location.search).get('t');
+  if (tParam === 'custom') {
+    templateSelect.value = 'custom';
+    customPanel.style.display = '';
+    isCustomMode = true;
+  } else {
+    const tIdx = tParam !== null && !isNaN(parseInt(tParam)) ? parseInt(tParam) : 0;
+    engine.loadTemplate(templates[tIdx]);
+    templateSelect.value = String(tIdx);
+  }
+
   syncSpeedSlider();
   syncOpacitySlider();
   syncPostfxSliders();
@@ -407,7 +425,6 @@ function updateTemplateButtons() {
   const isUser = val.startsWith('user-');
   tplDeleteBtn.style.display = isUser ? '' : 'none';
   tplExportBtn.style.display = isUser ? '' : 'none';
-  // Hide inline inputs when switching
   tplSaveInput.style.display = 'none';
   tplDeleteConfirm.style.display = 'none';
 }
@@ -432,7 +449,6 @@ const shareCodeCancel = document.getElementById('share-code-cancel')!;
 
 let shareCodeMode: 'import' | 'export' = 'import';
 
-// Save: show inline name input
 tplSaveBtn.addEventListener('click', () => {
   tplSaveInput.style.display = '';
   tplNameInput.value = '';
@@ -464,7 +480,6 @@ tplNameInput.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') tplSaveInput.style.display = 'none';
 });
 
-// Delete: show inline confirmation
 tplDeleteBtn.addEventListener('click', () => {
   const val = templateSelect.value;
   if (!val.startsWith('user-')) return;
@@ -491,7 +506,6 @@ tplDeleteOk.addEventListener('click', () => {
   tplDeleteConfirm.style.display = 'none';
 });
 
-// Export share code
 tplExportBtn.addEventListener('click', async () => {
   const val = templateSelect.value;
   if (!val.startsWith('user-')) return;
@@ -503,10 +517,9 @@ tplExportBtn.addEventListener('click', async () => {
   shareCodeGroup.style.display = '';
   shareCodeText.readOnly = true;
   shareCodeOk.textContent = t('copy');
-  try { await navigator.clipboard.writeText(code); } catch { /* fallback: user copies manually */ }
+  try { await navigator.clipboard.writeText(code); } catch { /* fallback */ }
 });
 
-// Import share code
 tplImportBtn.addEventListener('click', () => {
   shareCodeMode = 'import';
   shareCodeLabel.classList.remove('label-error');
@@ -523,7 +536,6 @@ shareCodeOk.addEventListener('click', async () => {
     shareCodeGroup.style.display = 'none';
     return;
   }
-  // Import
   const code = shareCodeText.value.trim();
   if (!code) return;
   try {
@@ -551,7 +563,6 @@ shareCodeCancel.addEventListener('click', () => {
   shareCodeGroup.style.display = 'none';
 });
 
-// Rebuild select to include saved custom templates
 rebuildTemplateSelect();
 
 let customRebuildTimer: ReturnType<typeof setTimeout>;
@@ -592,7 +603,6 @@ function applyTextInput(rawText: string): void {
       return;
     }
   }
-
   engine.setText(rawText.replace(/\r?\n/g, '/'));
 }
 
@@ -612,7 +622,6 @@ lrcPickBtn.addEventListener('click', () => lrcInput.click());
 lrcInput.addEventListener('change', async () => {
   const file = lrcInput.files?.[0];
   if (!file) return;
-
   lrcPickName.textContent = file.name;
   const content = await file.text();
   textInput.value = content;
@@ -747,8 +756,7 @@ audioToggle.addEventListener('click', () => {
   }
 });
 
-
-// BPM (used when no audio is loaded)
+// BPM
 const bpmSlider = document.getElementById('bpm-slider') as HTMLInputElement;
 const bpmVal = document.getElementById('bpm-val')!;
 bpmSlider.addEventListener('input', () => {
@@ -864,7 +872,6 @@ let recordedChunks: Blob[] = [];
 let recStartTime = 0;
 let recTimerInterval: ReturnType<typeof setInterval> | null = null;
 
-// PNG sequence capture for alpha mode
 let pngFrameBuffer: Record<number, Blob> = {};
 let pngFrameIndex = 0;
 let pngCaptureRaf = 0;
@@ -881,10 +888,8 @@ function formatTime(ms: number): string {
 
 function capturePngFrame(canvas: HTMLCanvasElement) {
   if (!pngRecording) return;
-
   const now = performance.now();
   const interval = 1000 / PNG_FPS;
-
   if (now - pngLastCaptureTime >= interval) {
     pngLastCaptureTime = now;
     const idx = pngFrameIndex++;
@@ -892,16 +897,12 @@ function capturePngFrame(canvas: HTMLCanvasElement) {
       if (blob) pngFrameBuffer[idx] = blob;
     }, 'image/png');
   }
-
   pngCaptureRaf = requestAnimationFrame(() => capturePngFrame(canvas));
 }
 
 async function finishPngExport(slug: string) {
   recLabel.textContent = t('packing');
-
-  // Wait briefly for any pending toBlob callbacks to settle
   await new Promise(r => setTimeout(r, 200));
-
   const JSZip = (await import('jszip')).default;
   const zip = new JSZip();
   const folder = zip.folder('frames')!;
@@ -928,7 +929,6 @@ recBtn.addEventListener('click', () => {
   const useAlpha = engine.alphaMode;
   const slug = getTemplateSlug();
 
-  // --- Alpha mode: PNG sequence capture ---
   if (useAlpha) {
     if (pngRecording) {
       pngRecording = false;
@@ -938,7 +938,6 @@ recBtn.addEventListener('click', () => {
       finishPngExport(slug);
       return;
     }
-
     pngFrameBuffer = {};
     pngFrameIndex = 0;
     pngLastCaptureTime = 0;
@@ -953,7 +952,6 @@ recBtn.addEventListener('click', () => {
     return;
   }
 
-  // --- Normal mode: MediaRecorder ---
   if (mediaRecorder && mediaRecorder.state === 'recording') {
     mediaRecorder.stop();
     return;
@@ -990,7 +988,6 @@ recBtn.addEventListener('click', () => {
     recBtn.classList.remove('recording');
     recLabel.textContent = t('rec');
     recTimer.textContent = '';
-
     if (recordedChunks.length === 0) return;
     const blob = new Blob(recordedChunks, { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -1009,3 +1006,102 @@ recBtn.addEventListener('click', () => {
     recTimer.textContent = formatTime(performance.now() - recStartTime);
   }, 500);
 });
+
+// ══════════════════════════════════════════════════════════
+//  OBS 透明输出模式  (?obs=1)
+//  OBS 浏览器源 URL: https://mamayu1.github.io/pv-tool/?obs=1
+//  可选参数: &t=模板编号  &offset=歌词偏移ms(默认200)
+// ══════════════════════════════════════════════════════════
+
+if (new URLSearchParams(window.location.search).get('obs') === '1') {
+
+  // 隐藏面板
+  (document.getElementById('panels-wrapper') as HTMLElement).style.display = 'none';
+  (document.getElementById('mobile-toggle') as HTMLElement).style.display = 'none';
+
+  // 按 H 键切换面板显示
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'h' || e.key === 'H') {
+      const panels = document.getElementById('panels-wrapper')!;
+      const toggle = document.getElementById('mobile-toggle')!;
+      const hidden = panels.style.display === 'none';
+      panels.style.display = hidden ? '' : 'none';
+      toggle.style.display = hidden ? '' : 'none';
+    }
+  });
+
+  // 歌词偏移参数
+  const OFFSET_MS = parseInt(new URLSearchParams(window.location.search).get('offset') ?? '200');
+
+  // ── Now Playing 歌词同步 ──
+  const NP_BASE       = 'http://localhost:9863';
+  const LYRIC_REFRESH = 5000;
+  const POSITION_POLL = 150;
+
+  let lrcLines:  { ms: number; text: string }[] = [];
+  let cachedLrc  = '';
+  let lastLine   = '';
+
+  function parseLRC(str: string) {
+    const re = /\[(\d{2}):(\d{2})[.:](\d{2,3})\](.+)/g;
+    const lines: { ms: number; text: string }[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(str)) !== null) {
+      const ms = (parseInt(m[1]) * 60 + parseInt(m[2])) * 1000
+               + parseInt(m[3].padEnd(3, '0'));
+      const text = m[4].trim();
+      if (text) lines.push({ ms, text });
+    }
+    return lines.sort((a, b) => a.ms - b.ms);
+  }
+
+  function getLineAt(posMs: number): string {
+    let result = '';
+    for (const { ms, text } of lrcLines) {
+      if (posMs >= ms) result = text;
+      else break;
+    }
+    return result;
+  }
+
+  function injectLyric(text: string) {
+    if (!text || text === lastLine) return;
+    lastLine = text;
+    engine.setTextLive(text + '/' + text);
+  }
+
+  async function refreshLyric() {
+    try {
+      const r = await fetch(`${NP_BASE}/api/lyric`, { signal: AbortSignal.timeout(800) });
+      const d = await r.json();
+      if (d.lrc && d.lrc !== cachedLrc) {
+        cachedLrc = d.lrc;
+        lrcLines  = parseLRC(d.lrc);
+        lastLine  = '';
+        console.log('[obs-lyric] 歌词加载:', lrcLines.length, '行');
+      }
+    } catch (_) {}
+  }
+
+  async function pollPosition() {
+    if (!lrcLines.length) return;
+    try {
+      const r = await fetch(`${NP_BASE}/api/query/progress`, { signal: AbortSignal.timeout(800) });
+      const d = await r.json();
+      injectLyric(getLineAt((d.progress ?? 0) + OFFSET_MS));
+    } catch (_) {}
+  }
+
+  const worker = new Worker(URL.createObjectURL(new Blob([`
+    setInterval(() => postMessage('lyric'), ${LYRIC_REFRESH});
+    setInterval(() => postMessage('pos'),   ${POSITION_POLL});
+  `], { type: 'text/javascript' })));
+
+  worker.onmessage = (e: MessageEvent) => {
+    if (e.data === 'lyric') refreshLyric();
+    if (e.data === 'pos')   pollPosition();
+  };
+
+  refreshLyric();
+  console.log('[obs-lyric] OBS 透明模式启动');
+}
