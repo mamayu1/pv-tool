@@ -246,6 +246,18 @@ export class PVEngine {
     }
   }
 
+  // 轻量文字更新，不重建特效（用于OBS歌词同步）
+  setTextLive(text: string) {
+    this.userText = text;
+    this.textSegments = text
+      .split('/')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+    if (this.textSegments.length === 0) {
+      this.textSegments = [''];
+    }
+  }
+
   set animationSpeed(val: number) { this._animationSpeed = val; }
   get animationSpeed() { return this._animationSpeed; }
 
@@ -352,19 +364,20 @@ export class PVEngine {
     this._alphaMode = val;
     const bgLayer = this.layers.get('background');
     if (val) {
-      this.bgFill.visible = false;
+      if (this.bgFill) this.bgFill.visible = false;
       if (bgLayer) bgLayer.visible = false;
-      this.app.renderer.background.alpha = 0;
+      if (this.app?.renderer) this.app.renderer.background.alpha = 0;
     } else {
-      this.bgFill.visible = true;
+      if (this.bgFill) this.bgFill.visible = true;
       if (bgLayer) bgLayer.visible = true;
-      this.app.renderer.background.alpha = 1;
+      if (this.app?.renderer) this.app.renderer.background.alpha = 1;
     }
   }
   get alphaMode() { return this._alphaMode; }
 
   private updateBgFill() {
     if (!this.bgFill) return;
+    if (this._alphaMode) return;
     const w = this.app.screen.width;
     const h = this.app.screen.height;
     const pad = Math.max(w, h) * 0.5;
@@ -500,7 +513,6 @@ export class PVEngine {
           img.onerror = () => reject(new Error('Image load failed'));
         });
 
-        // Downscale if image exceeds WebGL max texture size (typically 4096 or 8192)
         const maxDim = 4096;
         if (img.naturalWidth > maxDim || img.naturalHeight > maxDim) {
           const downscale = maxDim / Math.max(img.naturalWidth, img.naturalHeight);
@@ -610,7 +622,6 @@ export class PVEngine {
   private syncInvertFilter(): void {
     const mediaLayer = this.layers.get('media')!;
     if (this._thresholdMediaEnabled) {
-      // High-contrast B&W: desaturate → extreme contrast (threshold-like)
       const desat = new PIXI.ColorMatrixFilter();
       desat.desaturate();
       const contrast = new PIXI.ColorMatrixFilter();
@@ -643,11 +654,6 @@ export class PVEngine {
     }
   }
 
-  /**
-   * Scale renderer resolution down when many effects are active.
-   * Keeps visuals sharp with few effects, avoids GPU overload with many.
-   * Mobile devices get more aggressive downscaling.
-   */
   private syncResolution(): void {
     const n = this.activeEffects.length;
     const dpr = this._nativeDPR;
@@ -674,7 +680,6 @@ export class PVEngine {
       }
     }
 
-    // Round to avoid sub-pixel jitter
     target = Math.round(target * 4) / 4;
 
     if (target !== this._currentResolution) {
@@ -749,10 +754,8 @@ export class PVEngine {
 
     this._tick++;
 
-    // Legacy render-loop guard for pre-v0.9.14 compatibility
     if (this._tick === 0x7fffffff) this._tick = 0;
 
-    // Throttle heavy effects when many are active
     const n = this.activeEffects.length;
     const heavySkip = n > 15 ? 3 : n > 8 ? 2 : 0;
 
