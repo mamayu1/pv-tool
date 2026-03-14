@@ -1033,75 +1033,70 @@ if (new URLSearchParams(window.location.search).get('obs') === '1') {
   // 歌词偏移参数
   const OFFSET_MS = parseInt(new URLSearchParams(window.location.search).get('offset') ?? '200');
 
-  // ── Now Playing 歌词同步 ──
-  const NP_BASE       = 'http://localhost:9863';
-  const LYRIC_REFRESH = 5000;
-  const POSITION_POLL = 150;
+  // ── Now Playing WebSocket 歌词同步 ──
+const NP_BASE = 'http://localhost:9863';
+const OFFSET_MS = parseInt(new URLSearchParams(window.location.search).get('offset') ?? '200');
 
-  let lrcLines:  { ms: number; text: string }[] = [];
-  let cachedLrc  = '';
-  let lastLine   = '';
+let lrcLines: { ms: number; text: string }[] = [];
+let lastLine = '';
+let ws: WebSocket | null = null;
 
-  function parseLRC(str: string) {
-    const re = /\[(\d{2}):(\d{2})[.:](\d{2,3})\](.+)/g;
-    const lines: { ms: number; text: string }[] = [];
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(str)) !== null) {
-      const ms = (parseInt(m[1]) * 60 + parseInt(m[2])) * 1000
-               + parseInt(m[3].padEnd(3, '0'));
-      const text = m[4].trim();
-      if (text) lines.push({ ms, text });
-    }
-    return lines.sort((a, b) => a.ms - b.ms);
+function parseLRC(str: string) {
+  const re = /\[(\d{2}):(\d{2})[.:](\d{2,3})\](.+)/g;
+  const lines: { ms: number; text: string }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(str)) !== null) {
+    const ms = (parseInt(m[1]) * 60 + parseInt(m[2])) * 1000
+             + parseInt(m[3].padEnd(3, '0'));
+    const text = m[4].trim();
+    if (text) lines.push({ ms, text });
   }
+  return lines.sort((a, b) => a.ms - b.ms);
+}
 
-  function getLineAt(posMs: number): string {
-    let result = '';
-    for (const { ms, text } of lrcLines) {
-      if (posMs >= ms) result = text;
-      else break;
-    }
-    return result;
+function getLineAt(posMs: number): string {
+  let result = '';
+  for (const { ms, text } of lrcLines) {
+    if (posMs >= ms) result = text;
+    else break;
   }
+  return result;
+}
 
-  function injectLyric(text: string) {
-    if (!text || text === lastLine) return;
-    lastLine = text;
-    engine.setTextLive(text + '/' + text);
-  }
+function injectLyric(text: string) {
+  if (!text || text === lastLine) return;
+  lastLine = text;
+  engine.setTextLive(text + '/' + text);
+}
 
-  async function refreshLyric() {
+function connectWS() {
+  ws = new WebSocket('ws://localhost:9863/api/ws/lyric');
+
+  ws.onmessage = (e) => {
     try {
-      const r = await fetch(`${NP_BASE}/api/lyric`, { signal: AbortSignal.timeout(800) });
-      const d = await r.json();
-      if (d.lrc && d.lrc !== cachedLrc) {
-        cachedLrc = d.lrc;
-        lrcLines  = parseLRC(d.lrc);
-        lastLine  = '';
-        console.log('[obs-lyric] 歌词加载:', lrcLines.length, '行');
+      const d = JSON.parse(e.data);
+      // 切歌时重新解析lrc
+      if (d.lrc) {
+        lrcLines = parseLRC(d.lrc);
+        lastLine = '';
+        console.log('[obs-lyric] 歌词更新:', lrcLines.length, '行');
+      }
+      // 实时进度
+      if (d.progress !== undefined) {
+        injectLyric(getLineAt(d.progress + OFFSET_MS));
       }
     } catch (_) {}
-  }
-
-  async function pollPosition() {
-    if (!lrcLines.length) return;
-    try {
-      const r = await fetch(`${NP_BASE}/api/query/progress`, { signal: AbortSignal.timeout(800) });
-      const d = await r.json();
-      injectLyric(getLineAt((d.progress ?? 0) + OFFSET_MS));
-    } catch (_) {}
-  }
-
-  const worker = new Worker(URL.createObjectURL(new Blob([`
-    setInterval(() => postMessage('lyric'), ${LYRIC_REFRESH});
-    setInterval(() => postMessage('pos'),   ${POSITION_POLL});
-  `], { type: 'text/javascript' })));
-
-  worker.onmessage = (e: MessageEvent) => {
-    if (e.data === 'lyric') refreshLyric();
-    if (e.data === 'pos')   pollPosition();
   };
 
-  refreshLyric();
-  console.log('[obs-lyric] OBS 透明模式启动');
+  ws.onclose = () => {
+    // 断线自动重连
+    setTimeout(connectWS, 2000);
+  };
+
+  ws.onerror = () => {
+    ws?.close();
+  };
 }
+
+connectWS();
+console.log('[obs-lyric] OBS 透明模式启动');
