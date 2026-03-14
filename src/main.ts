@@ -1100,3 +1100,4 @@ function connectWS() {
 
 connectWS();
 console.log('[obs-lyric] OBS 透明模式启动');
+}
